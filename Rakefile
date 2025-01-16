@@ -1,9 +1,12 @@
 namespace :book do
 
   # Variables referenced for build
-  version_string = `git describe --tags`.chomp
+  version_string = `git describe --tags --abbrev=0`.chomp
   if version_string.empty?
     version_string = '0'
+  else
+    versions = version_string.split('.')
+    version_string = versions[0] + '.' + versions[1] + '.' + versions[2].to_i.next.to_s
   end
   date_string = Time.now.strftime('%Y-%m-%d')
   params = "--attribute revnumber='#{version_string}' --attribute revdate='#{date_string}'"
@@ -31,7 +34,7 @@ namespace :book do
   end
 
   desc 'build basic book formats'
-  task :build => [:build_html, :build_epub, :build_mobi, :build_pdf] do
+  task :build => [:build_html, :build_epub, :build_fb2, :build_mobi, :build_pdf] do
     begin
         # Run check
         Rake::Task['book:check'].invoke
@@ -44,7 +47,7 @@ namespace :book do
   end
 
   desc 'build basic book formats (for ci)'
-  task :ci => [:build_html, :build_epub, :build_mobi, :build_pdf] do
+  task :ci => [:build_html, :build_epub, :build_fb2, :build_mobi, :build_pdf] do
       # Run check, but don't ignore any errors
       Rake::Task['book:check'].invoke
   end
@@ -53,7 +56,7 @@ namespace :book do
   file 'book/contributors.txt' do
       puts 'Generating contributors list'
       sh "echo 'Contributors as of #{header_hash}:\n' > book/contributors.txt"
-      sh "git shortlog -s HEAD | grep -v -E '(Straub|Chacon|dependabot)' | cut -f 2- | column -c 120 >> book/contributors.txt"
+      sh "git shortlog -s HEAD | grep -v -E '(Straub|Chacon|dependabot)' | cut -f 2- | sort | column -c 120 >> book/contributors.txt"
   end
 
   desc 'build HTML format'
@@ -73,6 +76,16 @@ namespace :book do
       puts 'Converting to EPub...'
       sh "bundle exec asciidoctor-epub3 #{params} progit.asc"
       puts ' -- Epub output at progit.epub'
+
+  end
+
+  desc 'build FB2 format'
+  task :build_fb2 => 'book/contributors.txt' do
+      check_contrib()
+
+      puts 'Converting to FB2...'
+      sh "bundle exec asciidoctor-fb2 #{params} progit.asc"
+      puts ' -- FB2 output at progit.fb2.zip'
 
   end
 
@@ -107,7 +120,7 @@ namespace :book do
     begin
         puts 'Removing generated files'
 
-        FileList['book/contributors.txt', 'progit.html', 'progit.epub', 'progit.mobi', 'progit.pdf'].each do |file|
+        FileList['book/contributors.txt', 'progit.html', 'progit-kf8.epub', 'progit.epub', 'progit.fb2.zip', 'progit.mobi', 'progit.pdf'].each do |file|
             rm file
 
             # Rescue if file not found
